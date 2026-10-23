@@ -7,7 +7,7 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (!['1', '2', '3', '4'].includes(event.key)) return;
-  const option = document.querySelectorAll('#options .option')[Number(event.key) - 1];
+  const option = document.querySelectorAll('#options .answer-option')[Number(event.key) - 1];
   if (!option) return;
   event.preventDefault();
   option.click();

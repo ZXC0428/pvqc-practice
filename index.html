@@ -3,12 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PVQC 商業與管理 詞彙測驗</title>
+  <title>PVQC 商業與管理詞彙模擬測驗</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/selection.css">
   <link rel="stylesheet" href="css/theme.css">
   <link rel="stylesheet" href="css/range.css">
   <link rel="stylesheet" href="css/wide.css">
+  <link rel="stylesheet" href="css/feedback.css">
+  <link rel="stylesheet" href="css/audio-choice.css">
+  <link rel="stylesheet" href="css/mode-badge.css">
 </head>
 <body>
   <main class="shell">
@@ -18,10 +21,25 @@
     </header>
 
     <section id="setup" class="card setup-card">
-      <div class="intro"><p class="eyebrow">VOCABULARY PRACTICE</p><h1>商業與管理類<br>詞彙模擬測驗</h1><p class="intro-lead">自訂你的練習範圍與題數。<br>依序完成每一個選擇的測驗。</p><section class="how-to"><h2>使用說明</h2><ol><li><b>設定範圍</b><span>輸入起始與結束的詞彙庫編號。</span></li><li><b>決定題數</b><span>輸入每個測驗要隨機抽出的題數。</span></li><li><b>選擇題型</b><span>可單選、多選；各題型會分開進行。</span></li></ol></section><div class="intro-note"><span>⌨</span><p><b>快捷鍵</b><br>按 1–4 選答案，按 Enter 前往下一題。</p></div></div>
+      <div class="intro">
+        <p class="eyebrow">VOCABULARY PRACTICE</p>
+        <h1>商業與管理類<br>詞彙模擬測驗</h1>
+        <p class="intro-lead">設定範圍、題數與回饋模式。<br>依序完成每一個選擇的測驗。</p>
+        <section class="how-to">
+          <h2>使用說明</h2>
+          <ol>
+            <li><b>設定範圍</b><span>輸入起始與結束的詞彙庫編號。</span></li>
+            <li><b>決定題數</b><span>輸入每個測驗要隨機抽出的題數。</span></li>
+            <li><b>選擇模式</b><span>練習會顯示答案；模擬只顯示對錯。</span></li>
+            <li><b>勾選題組</b><span>可複選；每題組分開進行，限時 10 分鐘。</span></li>
+          </ol>
+        </section>
+        <div class="intro-note"><span>⌨</span><p><b>快捷鍵</b><br>按 1–4 選答案，按 Enter 前往下一題。</p></div>
+      </div>
       <div class="settings">
         <div class="range-inputs"><span>題目範圍</span><div><label>起始編號<input id="rangeStart" type="number" min="1" inputmode="numeric" value="1"></label><label>結束編號<input id="rangeEnd" type="number" min="1" inputmode="numeric" value="1514"></label></div></div>
         <label>每個測驗題數<input id="questionCount" type="number" min="1" inputmode="numeric" value="1514"></label>
+        <label>作答回饋模式<select id="feedbackMode"><option value="practice">練習模式：立即顯示正確答案</option><option value="exam">模擬測驗模式：只顯示對錯，答案保留至測驗完成</option></select></label>
         <fieldset class="test-selector"><legend>選擇測驗（各測驗使用上方設定題數）</legend><label><input type="checkbox" name="test" value="test2" checked> 測驗 2：看英文，選中文</label><label><input type="checkbox" name="test" value="test3"> 測驗 3：聽英文發音，選中文</label><label><input type="checkbox" name="test" value="test4"> 測驗 4：聽英文發音，選英文</label><label><input type="checkbox" name="test" value="test5"> 測驗 5：看中文，聽選英文發音</label><label><input type="checkbox" name="test" value="test6"> 測驗 6：看英文，聽選英文發音</label></fieldset>
         <button id="start" class="primary">開始測驗</button>
         <p id="bankInfo" class="bank-info"></p>
@@ -29,11 +47,9 @@
     </section>
 
     <section id="exam" class="exam hidden">
-      <div class="exam-head"><div><span class="section-tag">商業與管理類 專業級</span><h2>詞彙能力測驗</h2></div><div class="progress-info"><strong id="progressText">第 1 題／共 20 題</strong><span id="timer">00:00</span><button id="home" class="home-button">返回首頁</button></div></div>
+      <div class="exam-head"><div><span class="section-tag">商業與管理類 專業級</span><h2>詞彙能力測驗</h2><span id="modeBadge" class="mode-badge"></span></div><div class="progress-info"><strong id="progressText">第 1 題／共 20 題</strong><span id="timer">00:00</span><button id="home" class="home-button">返回首頁</button></div></div>
       <div class="progress-line"><i id="progressBar"></i></div>
-      <div class="content-grid">
-        <section class="question-panel"><p id="questionType" class="question-type"></p><p class="question-no">Question <span id="questionNo">01</span></p><h3 id="prompt"></h3><div id="options" class="options"></div><div id="feedback" class="feedback" aria-live="polite"></div><div id="liveStats" class="live-stats" aria-live="polite"></div><div class="controls"><button id="previous" class="secondary">‹ 上一題</button><button id="next" class="primary">下一題 ›</button></div></section>
-      </div>
+      <div class="content-grid"><section class="question-panel"><p id="questionType" class="question-type"></p><p class="question-no">Question <span id="questionNo">01</span></p><h3 id="prompt"></h3><div id="options" class="options"></div><div id="feedback" class="feedback" aria-live="polite"></div><div id="liveStats" class="live-stats" aria-live="polite"></div><div class="controls"><button id="previous" class="secondary">← 上一題</button><button id="next" class="primary">下一題 →</button></div></section></div>
     </section>
 
     <section id="result" class="card result hidden"><p class="eyebrow">TEST COMPLETE</p><h2 id="resultTitle">測驗結果</h2><div class="score"><strong id="score">0</strong><span>分</span></div><p id="scoreDetail"></p><div id="review" class="review"></div><section id="overallSummary" class="overall-summary hidden"></section><button id="nextTest" class="primary hidden">開始下一個測驗</button><button id="restart" class="primary">再測一次</button><button id="resultHome" class="home-button result-home">返回首頁</button></section>
