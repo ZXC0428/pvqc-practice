@@ -5,6 +5,7 @@ const tests = {
   test2: '測驗 2：看英文，選中文', test3: '測驗 3：聽英文發音，選中文',
   test4: '測驗 4：聽英文發音，選英文', test5: '測驗 5：看中文，聽選英文發音', test6: '測驗 6：看英文，聽選英文發音',
 };
+tests.test4 = '測驗 4：聽英文發音，選正確拼字';
 const shuffle = (items) => [...items].sort(() => Math.random() - .5);
 const esc = (value) => { const node = document.createElement('div'); node.textContent = value; return node.innerHTML; };
 const pronunciationOverrides = Object.freeze({
@@ -35,11 +36,46 @@ function speakSequence(texts) {
   };
   playNext();
 }
+function spellingOptions(value) {
+  const chars = [...String(value)];
+  const letterIndexes = chars.map((char, index) => /[A-Za-z]/.test(char) ? index : -1).filter((index) => index >= 0);
+  const variants = new Set();
+  const add = (candidate) => { if (candidate && candidate !== value) variants.add(candidate); };
+  const middle = letterIndexes[Math.floor(letterIndexes.length / 2)] ?? 0;
+  const last = letterIndexes[letterIndexes.length - 1] ?? 0;
+
+  if (letterIndexes.length > 1) add(chars.filter((_, index) => index !== middle).join(''));
+
+  const replacement = { a: 'e', e: 'i', i: 'e', o: 'a', u: 'o', A: 'E', E: 'I', I: 'E', O: 'A', U: 'O' };
+  const changed = [...chars];
+  const original = changed[middle] || 'a';
+  changed[middle] = replacement[original] || (original === original.toUpperCase() ? 'X' : 'x');
+  add(changed.join(''));
+
+  const pairStart = letterIndexes.find((index) => /[A-Za-z]/.test(chars[index + 1]));
+  if (pairStart !== undefined) {
+    const swapped = [...chars];
+    [swapped[pairStart], swapped[pairStart + 1]] = [swapped[pairStart + 1], swapped[pairStart]];
+    add(swapped.join(''));
+  }
+
+  const doubled = [...chars];
+  doubled.splice(last, 0, chars[last] || 'x');
+  add(doubled.join(''));
+
+  while (variants.size < 3) add(value + 'x'.repeat(variants.size + 1));
+  return shuffle([...variants]).slice(0, 3);
+}
 function buildQuestion(word, requested, bank) {
   const test = requested === 'mixed' ? shuffle(Object.keys(tests))[0] : requested;
   const audioChoices = test === 'test5' || test === 'test6';
   const englishChoices = test === 'test4' || audioChoices;
   const correct = englishChoices ? word.english : word.chinese;
+  if (test === 'test4') {
+    const options = spellingOptions(correct).map((value) => ({ value, partOfSpeech: word.partOfSpeech }));
+    options.push({ value: correct, partOfSpeech: word.partOfSpeech });
+    return { word, test, correct, audioChoices, options: shuffle(options) };
+  }
   const usedValues = new Set([correct]);
   const choices = [];
   for (const item of shuffle(bank.filter((item) => item.id !== word.id))) {
@@ -88,7 +124,7 @@ function updateTimer() {
     finish();
   }
 }
-function answer(option) { if (state.answers[state.current] !== null) return; state.answers[state.current] = option; render(); }
+function answer(option) { if (state.answers[state.current] !== null) return; window.speechSynthesis?.cancel(); state.answers[state.current] = option; render(); }
 function render() {
   const q = state.questions[state.current], selected = state.answers[state.current], answered = selected !== null, heard = q.test === 'test3' || q.test === 'test4';
   $('progressText').textContent = `第 ${state.current + 1} 題／共 ${state.questions.length} 題`; $('progressBar').style.width = `${state.answers.filter((item) => item !== null).length / state.questions.length * 100}%`;
