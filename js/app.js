@@ -7,15 +7,29 @@ const tests = {
 };
 const shuffle = (items) => [...items].sort(() => Math.random() - .5);
 const esc = (value) => { const node = document.createElement('div'); node.textContent = value; return node.innerHTML; };
-function speak(text) { if ('speechSynthesis' in window) { speechSynthesis.cancel(); const voice = new SpeechSynthesisUtterance(text); voice.lang = 'en-US'; voice.rate = .8; speechSynthesis.speak(voice); } }
+const pronunciationOverrides = Object.freeze({
+  'B/L': 'bill of lading',
+  'G2C': 'government to citizen',
+  'C2B': 'customer to business',
+  'C&I': 'cost and insurance',
+  'PIN': 'P I N',
+  'ROE': 'R O E',
+  'ATM': 'A T M',
+});
+function pronunciationText(text) {
+  const value = String(text).replace(/&amp;/g, '&').trim();
+  if (pronunciationOverrides[value]) return pronunciationOverrides[value];
+  return value.replace(/([A-Z0-9]+)\/([A-Z0-9]+)/g, '$1 $2').replace(/([A-Z])&([A-Z])/g, '$1 and $2');
+}
+function speak(text) { if ('speechSynthesis' in window) { speechSynthesis.cancel(); const voice = new SpeechSynthesisUtterance(pronunciationText(text)); voice.lang = 'en-US'; voice.rate = 1; speechSynthesis.speak(voice); } }
 function speakSequence(texts) {
   if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   let index = 0;
   const playNext = () => {
     if (index >= texts.length) return;
-    const voice = new SpeechSynthesisUtterance(texts[index++]);
-    voice.lang = 'en-US'; voice.rate = .8;
+    const voice = new SpeechSynthesisUtterance(pronunciationText(texts[index++]));
+    voice.lang = 'en-US'; voice.rate = 1;
     voice.onend = () => setTimeout(playNext, 350);
     speechSynthesis.speak(voice);
   };
@@ -63,7 +77,7 @@ function start() {
 function launchCurrentTest() {
   const test = state.selectedTests[state.testIndex], questionsPerTest = Number($('questionCount').value);
   if (!Number.isInteger(questionsPerTest) || questionsPerTest < 1 || questionsPerTest > state.bank.length) { alert(`每個測驗題數請輸入 1 到 ${state.bank.length}。`); goHome(); return; }
-  state.questions = shuffle(state.bank).slice(0, questionsPerTest).map((word) => buildQuestion(word, test, state.bank));
+  state.questions = shuffle(state.bank).slice(0, questionsPerTest).map((word) => buildQuestion(word, test, vocab));
   state.answers = Array(state.questions.length).fill(null); state.current = 0; state.startedAt = Date.now(); state.sectionStartedAt = Date.now();
   $('setup').classList.add('hidden'); $('result').classList.add('hidden'); $('exam').classList.remove('hidden'); clearInterval(state.timer); state.timer = setInterval(updateTimer, 1000); updateTimer(); render();
 }
@@ -92,21 +106,29 @@ function render() {
   document.querySelectorAll('#options .answer-option').forEach((button) => button.onclick = () => answer(button.dataset.option));
   $('previous').disabled = true; $('previous').style.visibility = 'hidden'; $('next').disabled = !answered; $('next').textContent = state.current === state.questions.length - 1 ? '交卷並查看結果' : '下一題 ›';
   if (!answered && q.audioChoices) setTimeout(() => speakSequence(q.options.map((option) => option.value)), 160);
+  if (!answered && heard) setTimeout(() => speak(q.word.english), 160);
 }
 function next() { if (state.answers[state.current] === null) return; if (state.current === state.questions.length - 1) finish(); else { state.current += 1; render(); } }
 function finish() {
   clearInterval(state.timer); const right = state.questions.filter((q, index) => state.answers[index] === q.correct).length, score = Math.round(right / state.questions.length * 100);
   const hasNextTest = state.testIndex < state.selectedTests.length - 1;
   const wrongIds = state.questions.filter((q, index) => state.answers[index] !== q.correct).map((q) => q.word.id);
-  state.summaries[state.testIndex] = { test: state.questions[0].test, right, total: state.questions.length, wrongIds };
+  const wrongDetails = state.questions.map((q, index) => ({ questionNo: index + 1, id: q.word.id, selected: state.answers[index] || '未作答', isWrong: state.answers[index] !== q.correct })).filter((item) => item.isWrong);
+  state.summaries[state.testIndex] = { test: state.questions[0].test, right, total: state.questions.length, wrongIds, wrongDetails };
   $('exam').classList.add('hidden'); $('result').classList.remove('hidden'); $('resultTitle').textContent = `${tests[state.questions[0].test]} 測驗結果`; $('score').textContent = score; $('scoreDetail').textContent = `答對 ${right}／${state.questions.length} 題　｜　剩餘時間 ${$('timer').textContent}`;
-  $('nextTest').classList.toggle('hidden', !hasNextTest); if (hasNextTest) $('nextTest').textContent = `開始下一個：${tests[state.selectedTests[state.testIndex + 1]]}`;
+  $('nextTest').classList.toggle('hidden', !hasNextTest); if (hasNextTest) $('nextTest').textContent = '開始下一個測驗';
   $('review').innerHTML = state.feedbackMode === 'exam' ? wrongIds.length ? `<div class="review-item"><strong>本題組答錯題目</strong><br>原詞彙庫編號：${wrongIds.join('、')}</div>` : `<div class="review-item correct"><strong>本題組全部答對</strong></div>` : state.questions.map((q, index) => { const ok = state.answers[index] === q.correct; return `<div class="review-item ${ok ? 'correct' : ''}"><strong>第 ${index + 1} 題　${ok ? '✓ 正確' : '✕ 待加強'}</strong><br>原詞彙庫編號：${q.word.id}　｜　${esc(tests[q.test])}<br>單字：${esc(q.word.english)}（${esc(q.word.partOfSpeech)}）　｜　中文：${esc(q.word.chinese)}<br>正確答案：${esc(q.correct)}${ok ? '' : `<br>你的答案：${esc(state.answers[index] || '未作答')}`}</div>`; }).join('');
+  if (state.feedbackMode === 'exam') {
+    $('review').innerHTML = wrongDetails.length ? `<div class="review-item"><strong>本題組答錯題目</strong>${wrongDetails.map((item) => `<br>第 ${item.questionNo} 題　｜　原詞彙庫編號：${item.id}　｜　你的答案：${esc(item.selected)}`).join('')}</div>` : `<div class="review-item correct"><strong>本題組全部答對</strong></div>`;
+  }
   const summary = $('overallSummary');
   if (hasNextTest) { summary.classList.add('hidden'); summary.innerHTML = ''; } else {
     const totalRight = state.summaries.reduce((sum, item) => sum + item.right, 0), totalQuestions = state.summaries.reduce((sum, item) => sum + item.total, 0);
     summary.classList.remove('hidden');
     summary.innerHTML = `<h3>全部題組總結</h3><div class="summary-grid">${state.summaries.map((item) => { const wrong = item.total - item.right, rate = Math.round(item.right / item.total * 100), wrongList = wrong ? `錯題編號：${item.wrongIds.join('、')}` : '本題組全對'; return `<div><strong>${esc(tests[item.test])}</strong><span>答對 ${item.right} 題　答錯 ${wrong} 題</span><em>正確率 ${rate}%</em><small>${wrongList}</small></div>`; }).join('')}</div><p class="summary-total">全部合計：答對 ${totalRight} 題　答錯 ${totalQuestions - totalRight} 題　｜　正確率 ${Math.round(totalRight / totalQuestions * 100)}%</p>`;
+    if (state.feedbackMode === 'exam') {
+      summary.innerHTML = `<h3>全部題組總結</h3><div class="summary-grid">${state.summaries.map((item) => { const wrong = item.total - item.right, rate = Math.round(item.right / item.total * 100); const wrongList = wrong ? item.wrongDetails.map((detail) => `第 ${detail.questionNo} 題（編號 ${detail.id}）：你的答案 ${esc(detail.selected)}`).join('<br>') : '本題組全對'; return `<div><strong>${esc(tests[item.test])}</strong><span>答對 ${item.right} 題　答錯 ${wrong} 題</span><em>正確率 ${rate}%</em><small>${wrongList}</small></div>`; }).join('')}</div><p class="summary-total">全部合計：答對 ${totalRight} 題　答錯 ${totalQuestions - totalRight} 題　｜　正確率 ${Math.round(totalRight / totalQuestions * 100)}%</p>`;
+    }
   }
 }
 function goHome() { clearInterval(state.timer); window.speechSynthesis?.cancel(); $('exam').classList.add('hidden'); $('result').classList.add('hidden'); $('setup').classList.remove('hidden'); }
