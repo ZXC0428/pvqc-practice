@@ -1,0 +1,12 @@
+@media (min-width:1000px){
+  .shell{width:min(1480px,96vw);max-width:none;padding-top:46px}
+  .topbar{min-height:88px;padding:20px 38px}
+  .brand{font-size:32px}.subtitle{font-size:15px}.demo-label{font-size:14px}
+  .setup-card{grid-template-columns:.9fr 1.1fr;min-height:660px}
+  .intro{padding:78px 74px}.intro h1{font-size:50px}.intro .intro-lead{font-size:18px!important;line-height:1.9!important}.intro .intro-note p{font-size:13px!important;line-height:1.55!important}
+  .settings{padding:66px 76px;gap:21px}.settings>label,.range-inputs{font-size:16px}
+  .range-inputs label{font-size:14px}.range-inputs input,#questionCount,.settings select{height:54px;font-size:18px}
+  .test-selector{padding:18px;gap:10px}.test-selector legend{font-size:16px}.settings .test-selector label{min-height:53px;font-size:16px}
+  .exam-head{padding:30px 48px 24px}.exam h2{font-size:31px}.question-panel{max-width:980px;padding:58px 70px}.question-panel h3{font-size:36px}.option{min-height:68px;font-size:18px}.letter{width:31px;height:31px;font-size:15px}.part-of-speech{font-size:13px}
+}
+@media (min-width:1600px){.shell{width:min(1580px,94vw)}.setup-card{min-height:700px}.intro h1{font-size:54px}}
