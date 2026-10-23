@@ -1,6 +1,6 @@
 const vocab = window.PVQC_VOCABULARY || [];
 const $ = (id) => document.getElementById(id);
-const state = { questions: [], answers: [], current: 0, startedAt: 0, sectionStartedAt: 0, timer: null, selectedTests: [], testIndex: 0, bank: [], summaries: [], feedbackMode: 'practice' };
+const state = { questions: [], answers: [], current: 0, startedAt: 0, sectionStartedAt: 0, timer: null, selectedTests: [], testIndex: 0, bank: [], summaries: [], feedbackMode: 'practice', speechToken: 0 };
 const tests = {
   test2: '測驗 2：看英文，選中文', test3: '測驗 3：聽英文發音，選中文',
   test4: '測驗 4：聽英文發音，選英文', test5: '測驗 5：看中文，聽選英文發音', test6: '測驗 6：看英文，聽選英文發音',
@@ -8,6 +8,7 @@ const tests = {
 tests.test4 = '測驗 4：聽英文發音，選正確拼字';
 const shuffle = (items) => [...items].sort(() => Math.random() - .5);
 const esc = (value) => { const node = document.createElement('div'); node.textContent = value; return node.innerHTML; };
+const englishText = (value) => String(value).replace(/&amp;/g, '&');
 const pronunciationOverrides = Object.freeze({
   'B/L': 'bill of lading',
   'G2C': 'government to citizen',
@@ -22,16 +23,18 @@ function pronunciationText(text) {
   if (pronunciationOverrides[value]) return pronunciationOverrides[value];
   return value.replace(/([A-Z0-9]+)\/([A-Z0-9]+)/g, '$1 $2').replace(/([A-Z])&([A-Z])/g, '$1 and $2');
 }
-function speak(text) { if ('speechSynthesis' in window) { speechSynthesis.cancel(); const voice = new SpeechSynthesisUtterance(pronunciationText(text)); voice.lang = 'en-US'; voice.rate = 1; speechSynthesis.speak(voice); } }
+function stopSpeech() { state.speechToken += 1; window.speechSynthesis?.cancel(); }
+function speak(text) { if ('speechSynthesis' in window) { stopSpeech(); const voice = new SpeechSynthesisUtterance(pronunciationText(text)); voice.lang = 'en-US'; voice.rate = 1; speechSynthesis.speak(voice); } }
 function speakSequence(texts) {
   if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
+  stopSpeech();
+  const token = state.speechToken;
   let index = 0;
   const playNext = () => {
-    if (index >= texts.length) return;
+    if (token !== state.speechToken || index >= texts.length) return;
     const voice = new SpeechSynthesisUtterance(pronunciationText(texts[index++]));
     voice.lang = 'en-US'; voice.rate = 1;
-    voice.onend = () => setTimeout(playNext, 350);
+    voice.onend = () => { if (token === state.speechToken) setTimeout(playNext, 350); };
     speechSynthesis.speak(voice);
   };
   playNext();
@@ -70,7 +73,7 @@ function buildQuestion(word, requested, bank) {
   const test = requested === 'mixed' ? shuffle(Object.keys(tests))[0] : requested;
   const audioChoices = test === 'test5' || test === 'test6';
   const englishChoices = test === 'test4' || audioChoices;
-  const correct = englishChoices ? word.english : word.chinese;
+  const correct = englishChoices ? englishText(word.english) : word.chinese;
   if (test === 'test4') {
     const options = spellingOptions(correct).map((value) => ({ value, partOfSpeech: word.partOfSpeech }));
     options.push({ value: correct, partOfSpeech: word.partOfSpeech });
@@ -79,7 +82,7 @@ function buildQuestion(word, requested, bank) {
   const usedValues = new Set([correct]);
   const choices = [];
   for (const item of shuffle(bank.filter((item) => item.id !== word.id))) {
-    const value = englishChoices ? item.english : item.chinese;
+    const value = englishChoices ? englishText(item.english) : item.chinese;
     if (!value || usedValues.has(value)) continue;
     usedValues.add(value);
     choices.push({ value, partOfSpeech: item.partOfSpeech });
@@ -104,7 +107,7 @@ function start() {
   const first = Number($('rangeStart').value), last = Number($('rangeEnd').value);
   if (!Number.isInteger(first) || !Number.isInteger(last) || first < 1 || last > vocab.length || first > last) { alert(`請輸入有效範圍：1 到 ${vocab.length}，且起始編號不可大於結束編號。`); return; }
   const bank = vocab.filter((item) => item.id >= first && item.id <= last && item.english && item.chinese);
-  if (bank.length < 4) { alert('請輸入至少包含 4 個詞彙的範圍，才能建立四選一題目。'); return; }
+  if (!bank.length) { alert('指定範圍內沒有可用詞彙。'); return; }
   const selectedTests = [...document.querySelectorAll('input[name="test"]:checked')].map((input) => input.value);
   if (!selectedTests.length) { alert('請至少勾選一種測驗。'); return; }
   state.selectedTests = selectedTests; state.testIndex = 0; state.bank = bank; state.summaries = []; state.feedbackMode = $('feedbackMode').value;
@@ -124,9 +127,11 @@ function updateTimer() {
     finish();
   }
 }
-function answer(option) { if (state.answers[state.current] !== null) return; window.speechSynthesis?.cancel(); state.answers[state.current] = option; render(); }
+function answer(option) { if (state.answers[state.current] !== null) return; stopSpeech(); state.answers[state.current] = option; render(); }
 function render() {
   const q = state.questions[state.current], selected = state.answers[state.current], answered = selected !== null, heard = q.test === 'test3' || q.test === 'test4';
+  const correctOption = 'ABCD'[q.options.findIndex((option) => option.value === q.correct)];
+  const selectedOption = answered ? 'ABCD'[q.options.findIndex((option) => option.value === selected)] : '';
   $('progressText').textContent = `第 ${state.current + 1} 題／共 ${state.questions.length} 題`; $('progressBar').style.width = `${state.answers.filter((item) => item !== null).length / state.questions.length * 100}%`;
   $('modeBadge').textContent = state.feedbackMode === 'exam' ? '模擬測驗模式　｜　當題僅顯示對錯' : '練習模式　｜　當題顯示正確答案';
   $('modeBadge').className = `mode-badge ${state.feedbackMode}`;
@@ -134,6 +139,12 @@ function render() {
   $('prompt').innerHTML = heard ? `<span class="audio-instruction">請播放英文題目發音後，再選擇答案</span><button class="audio-question-play" id="promptAudio">🔊 <span>播放題目發音</span><small>可重複播放</small></button>` : esc(q.test === 'test5' ? q.word.chinese : q.word.english);
   $('options').innerHTML = q.options.map((option, index) => q.audioChoices ? `<div class="audio-choice ${selected === option.value ? 'selected' : ''}"><span class="letter">${'ABCD'[index]}</span><button type="button" class="audio-play" data-listen="${esc(option.value)}" aria-label="播放選項 ${'ABCD'[index]} 的英文發音">🔊 <span>聽發音</span></button><button type="button" class="audio-answer answer-option" data-option="${esc(option.value)}" ${answered ? 'disabled' : ''}>選擇此答案</button><span class="part-of-speech">${esc(option.partOfSpeech || '')}</span></div>` : `<button class="option answer-option ${selected === option.value ? 'selected' : ''}" data-option="${esc(option.value)}" ${answered ? 'disabled' : ''}><span class="letter">${'ABCD'[index]}</span>${esc(option.value)}<span class="part-of-speech">${esc(option.partOfSpeech || '')}</span></button>`).join('');
   $('feedback').innerHTML = !answered ? '' : selected === q.correct ? `<div class="feedback correct">✓ 答對！原詞彙庫編號：${q.word.id}</div>` : state.feedbackMode === 'exam' ? `<div class="feedback wrong">✕ 答錯。原詞彙庫編號：<strong>${q.word.id}</strong></div>` : `<div class="feedback wrong">✕ 答錯。原詞彙庫編號：<strong>${q.word.id}</strong><br>正確答案：<strong>${esc(q.correct)}</strong></div>`;
+  if (!heard && q.test !== 'test5') $('prompt').textContent = englishText(q.word.english);
+  if (answered && state.feedbackMode === 'practice') {
+    $('feedback').innerHTML = selected === q.correct
+      ? '<div class="feedback correct">✓ 答對！原詞彙庫編號：' + q.word.id + '<br>正確選項：' + correctOption + '　｜　正確答案：' + esc(q.correct) + '</div>'
+      : '<div class="feedback wrong">✕ 答錯！原詞彙庫編號：' + q.word.id + '<br>你的選項：' + selectedOption + '　｜　正確選項：' + correctOption + '<br>正確答案：' + esc(q.correct) + '</div>';
+  }
   const correctCount = state.questions.filter((question, index) => state.answers[index] === question.correct).length;
   const answeredCount = state.answers.filter((answer) => answer !== null).length;
   $('liveStats').innerHTML = `本測驗累積：<strong class="stat-good">對：${correctCount} 題</strong><strong class="stat-bad">錯：${answeredCount - correctCount} 題</strong><span>目前第 ${state.current + 1} 題</span>`;
@@ -141,12 +152,19 @@ function render() {
   document.querySelectorAll('#options .audio-play').forEach((button) => button.onclick = () => speak(button.dataset.listen));
   document.querySelectorAll('#options .answer-option').forEach((button) => button.onclick = () => answer(button.dataset.option));
   $('previous').disabled = true; $('previous').style.visibility = 'hidden'; $('next').disabled = !answered; $('next').textContent = state.current === state.questions.length - 1 ? '交卷並查看結果' : '下一題 ›';
-  if (!answered && q.audioChoices) setTimeout(() => speakSequence(q.options.map((option) => option.value)), 160);
-  if (!answered && heard) setTimeout(() => speak(q.word.english), 160);
+  if (!answered && (q.audioChoices || heard)) {
+    const questionIndex = state.current;
+    const token = state.speechToken;
+    setTimeout(() => {
+      if (token !== state.speechToken || questionIndex !== state.current || state.answers[questionIndex] !== null) return;
+      if (q.audioChoices) speakSequence(q.options.map((option) => option.value));
+      else speak(q.word.english);
+    }, 160);
+  }
 }
 function next() { if (state.answers[state.current] === null) return; if (state.current === state.questions.length - 1) finish(); else { state.current += 1; render(); } }
 function finish() {
-  clearInterval(state.timer); const right = state.questions.filter((q, index) => state.answers[index] === q.correct).length, score = Math.round(right / state.questions.length * 100);
+  clearInterval(state.timer); stopSpeech(); const right = state.questions.filter((q, index) => state.answers[index] === q.correct).length, score = Math.round(right / state.questions.length * 100);
   const hasNextTest = state.testIndex < state.selectedTests.length - 1;
   const wrongIds = state.questions.filter((q, index) => state.answers[index] !== q.correct).map((q) => q.word.id);
   const wrongDetails = state.questions.map((q, index) => ({ questionNo: index + 1, id: q.word.id, selected: state.answers[index] || '未作答', isWrong: state.answers[index] !== q.correct })).filter((item) => item.isWrong);
@@ -167,7 +185,7 @@ function finish() {
     }
   }
 }
-function goHome() { clearInterval(state.timer); window.speechSynthesis?.cancel(); $('exam').classList.add('hidden'); $('result').classList.add('hidden'); $('setup').classList.remove('hidden'); }
+function goHome() { clearInterval(state.timer); stopSpeech(); $('exam').classList.add('hidden'); $('result').classList.add('hidden'); $('setup').classList.remove('hidden'); }
 $('start').onclick = start; $('next').onclick = next; $('nextTest').onclick = () => { state.testIndex += 1; launchCurrentTest(); }; $('restart').onclick = () => { $('result').classList.add('hidden'); $('setup').classList.remove('hidden'); }; $('home').onclick = goHome; $('resultHome').onclick = goHome;
 document.head.insertAdjacentHTML('beforeend', '<style>.listen-button{border:1px solid #8bb5d4;background:#edf7fd;color:#125e97;border-radius:4px;padding:9px 13px;font:700 15px inherit;cursor:pointer}.feedback{margin-top:18px;padding:14px 16px;border-radius:4px;font-weight:700}.feedback.correct{background:#edf9f1;color:#197143;border-left:4px solid #35a267}.feedback.wrong{background:#fff2f1;color:#aa332c;border-left:4px solid #d9574f}.option:disabled{cursor:default;opacity:.82}.speaker{font-size:20px;margin-right:9px}.audio-copy{font-weight:700;color:#3b546a}</style>');
 setupRanges();
